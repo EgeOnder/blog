@@ -1,0 +1,64 @@
+---
+title: 'How I cached all of my backend with Redis'
+description: 'I cached almost all the responses from my backend with Redis and it boosted my app performance significantly. Here is how I did it.'
+date: '2023-12-27'
+tags: ['redis', backend', 'performance']
+---
+
+I have been working on a [project](https://kafeasist.com/) for a while now and I was not happy with the performance of the app. I was using the free tier and I was not planning to upgrade it to a paid one. So, I had to find a way to improve the performance of the app without upgrading. I noticed that the reason my app was so slow was that I was making a lot of requests to my database and they were taking a long time. So I decided to cache all the responses _(almost)_ from my backend with Redis. Here is how I did it:
+
+# Why was my app so slow?
+
+I'm working on an app called [kafeasist](https://kafeasist.com/), which is a platform for restaurants to manage their business through a dashboard. In the app, you can create multiple companies for one user, and each company has their own data (employees, products, orders, etc.). Everytime a user logged in to the app, or changed the company they wanted to manage, the app made a request to the backend to get the data of the selected company. This was obviously not ideal because the data of the selected company contained a lot of stuff and the they were not changing very often. This meant that whenever I looked at my database logs, I saw a bunch of repetitive requests being made to the same data.
+
+I was using [PlanetScale](https://planetscale.com/) to host and manage my data and I was on the free tier. Although [PlanetScale](https://planetscale.com/)'s free tier is quite generous, this meant that I had limited amount of requests that I can make to my database. I at least wanted to stay on the free tier for a while, so I had to find a way to reduce the amount of requests I was making to my database. And here comes the solution that was specifically made for this problem: ✨ [caching](https://aws.amazon.com/caching/) ✨.
+
+# What is caching?
+
+In a few words, caching is the process of storing data in a cache, which is a temporary storage that stores data that is frequently accessed. This means that instead of making a request to the database everytime you need some data, you can just get it from the cache. This is a great way to reduce the amount of requests you make to your database and improve the performance of your app.
+
+# How did I cache my data?
+
+There are many solutions for caching, usually people use KV stores like [Redis](https://redis.io/) or [Memcached](https://memcached.org/). KV stores are great for caching because they are in-memory databases, which means that they are really really fast.
+
+## Selecting a caching solution
+
+I decided to go with [Redis](https://redis.io/) because it had a larger community support and was more popular. There was also an amazing [Node](https://nodejs.org/en/) library for handling [Redis](https://redis.io/) called [@upstash/redis](https://www.npmjs.com/package/@upstash/redis) which was made by a company called [Upstash](https://upstash.com). It definitely made the developer experience much more enjoyable and easier. Also, [Upstash](https://upstash.com/) had a generous free tier that I was probably not going to exceed anytime soon.
+
+## Creating an abstraction layer
+
+I decided to create an abstraction layer for setting, getting, deleting, and invalidating the cache. I wanted to make my code reusable since my plan was to cache almost all of my backend. I also wanted to make it easy to invalidate the cache when the data changes, and I wanted it to be almost fully type-safe. After all that, I was ready to cache all of my data and reduce my database calls.
+
+## Caching all of my data
+
+I started by caching the data that I was fetching the most. I started with the data that I was fetching everytime the user logs in to the app. This was the data of the selected company. Since I created an abstraction layer on setting and getting the cache, it was very easy to cache the data.
+
+```ts
+// Get the company data of the user from the cache
+const company = await readCache<Company>(ctx.session.id);
+
+// If the company data is not in the cache, get it from the database
+if (!company) {
+  ...
+
+  // Set the company data in the cache
+  await setCache(ctx.session.id, company);
+}
+```
+
+I also wanted to invalidate the cache when the data changes. In this case, I wanted to invalidate the cache when the user changed the company they wanted to manage. So, I only had to invalidate the cache when the user edited the company data, which did not occur very often.
+
+```ts
+// Invalidate the cache when the user changes the company they want to manage
+await invalidateCache(ctx.session.id);
+```
+
+After applying this to all of the data that almost never changes, I noticed a huge improvement in the performance of my app. I was making a lot less requests to my database and my app was much faster. I was very happy with the results.
+
+# Conclusion
+
+After all, I had almost a **10x** decrease on the database calls that I was making. My requests were much more faster and the app was much more responsive. I could definitely see the difference between cached and non-cached data.
+
+-   If your app is slow, it's maybe because you are not writing good code. Try to find the bottleneck and fix it.
+-   Cache your data if your data is heavy and does not change often. It will improve the performance of your app significantly.
+-   [Upstash](https://upstash.com/) was a great choice for caching. It has a generous free tier and it is very easy to use.
